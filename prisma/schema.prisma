@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  fullName     String    @map("full_name") @db.VarChar(255)
+  isVerified   Boolean   @default(false) @map("is_verified")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  subscriptions     Subscription[]
+  otpCodes          OtpCode[]
+  refreshTokens     RefreshToken[]
+  authLogs          AuthLog[]
+  pushSubscriptions PushSubscription[]
+  notificationPrefs NotificationPreferences?
+
+  @@map("users")
+}
+
+model Subscription {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(255)
+  category     String   @default("other") @db.VarChar(100)
+  cost         Decimal  @default(0) @db.Decimal(10, 2)
+  billingDay   Int      @map("billing_day")
+  billingMonth String   @map("billing_month") @db.VarChar(50)
+  startDate    DateTime @map("start_date")
+  status       String   @default("active") @db.VarChar(50)
+  notes        String   @default("") @db.VarChar(1000)
+  currency     String   @default("USD") @db.VarChar(10)
+  userId       String   @map("user_id") @db.VarChar(36)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@unique([name, userId])
+  @@map("subscriptions")
+}
+
+model Notification {
+  id             Int      @id @default(autoincrement())
+  subscriptionId Int      @map("subscription_id")
+  message        String   @db.Text
+  triggerDays    Int      @map("trigger_days")
+  sentAt         DateTime @default(now()) @map("sent_at")
+  isRead         Boolean  @default(false) @map("is_read")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model OtpCode {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  code      String   @db.VarChar(255)
+  type      String   @db.VarChar(50)
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otp_codes")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  tokenHash String   @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  userAgent String?  @map("user_agent") @db.Text
+  ipAddress String?  @map("ip_address") @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model AuthLog {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    String?  @map("user_id") @db.VarChar(36)
+  event     String   @db.VarChar(100)
+  ipAddress String?  @map("ip_address") @db.VarChar(100)
+  userAgent String?  @map("user_agent") @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("auth_logs")
+}
+
+model PushSubscription {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  userId     String    @map("user_id") @db.VarChar(36)
+  endpoint   String    @unique @db.VarChar(500)
+  p256dh     String    @db.Text
+  authKey    String    @map("auth_key") @db.Text
+  deviceHint String    @default("unknown") @map("device_hint") @db.VarChar(50)
+  userAgent  String?   @map("user_agent") @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  isActive   Boolean   @default(true) @map("is_active")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("push_subscriptions")
+}
+
+model NotificationPreferences {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  userId     String   @unique @map("user_id") @db.VarChar(36)
+  daysFirst  Int      @default(7) @map("days_first")
+  daysSecond Int      @default(3) @map("days_second")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
